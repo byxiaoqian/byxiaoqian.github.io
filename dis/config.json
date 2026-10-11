@@ -2,7 +2,14 @@
   "hallOfFame" : {
     "contact" : "萧潜",
     "members" : [
-
+      {
+        "current" : "老友",
+        "hidden" : false,
+        "titles" : [
+          "老友"
+        ],
+        "uid" : 905301
+      }
     ]
   },
   "minVersion" : "0.9.0",
