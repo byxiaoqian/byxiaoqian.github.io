@@ -43,7 +43,11 @@ def choices():
     """{uid: (hidden: bool, title: str|None)}, 每个会话的最新一条"""
     found = {}
     for page in range(1, 11):
-        items = ITEM.findall(get(f"pm.php?filter=privatepm&page={page}"))
+        src = get(f"pm.php?filter=privatepm&page={page}")
+        items = ITEM.findall(src)
+        if os.environ.get("HOF_DEBUG"):
+            i = src.find("名人堂")
+            print("DEBUG", len(src), len(items), "summary" in src, re.sub(r"\s+", " ", src[max(0, i - 700):i + 100]) if i >= 0 else src[:300])
         for uid, _, _, summary in items:
             text = html.unescape(re.sub(r"<[^>]+>", "", summary)).strip()
             m = MSG.search(text)

@@ -20,6 +20,7 @@ jobs:
         env:
           FORUM_USERNAME: ${{ secrets.FORUM_USERNAME }}
           FORUM_PASSWORD: ${{ secrets.FORUM_PASSWORD }}
+          HOF_DEBUG: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
       - if: steps.sync.outputs.message != ''
         run: |
           git config user.name "github-actions[bot]"
