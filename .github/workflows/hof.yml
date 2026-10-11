@@ -1,28 +1,40 @@
 name: 名人堂设置同步
 
+# 常驻: 一个 run 每 2 分钟查一次收件箱, 跑约 5 小时 50 分后接力启动下一个 run.
+# schedule 只是兜底 (GitHub 定时经常延迟/漏跑): 发现没有常驻的 run 在跑时把链条重新拉起来
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
-
-concurrency: hof-sync
+  actions: write
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
-      - id: sync
-        run: python3 .github/scripts/hof_sync.py
-        env:
-          FORUM_USERNAME: ${{ secrets.FORUM_USERNAME }}
-          FORUM_PASSWORD: ${{ secrets.FORUM_PASSWORD }}
-      - if: steps.sync.outputs.message != ''
+      - id: check
+        name: 已有常驻 run 就退出
+        run: |
+          others=$(gh run list -R "$GITHUB_REPOSITORY" -w hof.yml --json databaseId,status \
+            --jq "[.[] | select(.databaseId != $GITHUB_RUN_ID and (.status == \"in_progress\" or .status == \"queued\"))] | length")
+          echo "busy=$others" >> "$GITHUB_OUTPUT"
+      - if: steps.check.outputs.busy == '0'
+        uses: actions/checkout@v4
+      - if: steps.check.outputs.busy == '0'
+        name: 常驻同步
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
-          git commit -am "${{ steps.sync.outputs.message }}"
-          git push
+          python3 -u .github/scripts/hof_sync.py --loop 21000
+        env:
+          FORUM_USERNAME: ${{ secrets.FORUM_USERNAME }}
+          FORUM_PASSWORD: ${{ secrets.FORUM_PASSWORD }}
+      - if: always() && steps.check.outputs.busy == '0'
+        name: 接力下一轮
+        run: gh workflow run hof.yml -R "$GITHUB_REPOSITORY"
