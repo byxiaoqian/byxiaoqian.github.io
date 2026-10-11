@@ -46,8 +46,7 @@ def choices():
         src = get(f"pm.php?filter=privatepm&page={page}")
         items = ITEM.findall(src)
         if os.environ.get("HOF_DEBUG"):
-            i = src.find("名人堂")
-            print("DEBUG", len(src), len(items), "summary" in src, re.sub(r"\s+", " ", src[max(0, i - 700):i + 100]) if i >= 0 else src[:300])
+            print("DEBUG", page, len(items), [(u, x[:120]) for u, _, _, x in items if u == "905301"])
         for uid, _, _, summary in items:
             text = html.unescape(re.sub(r"<[^>]+>", "", summary)).strip()
             m = MSG.search(text)
