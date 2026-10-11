@@ -4,7 +4,7 @@
 App 发的信 (Dis 的 HallOfFame.submitIfNeeded):  「[Dis 名人堂] 显示「元老」」/「[Dis 名人堂] 不显示」
 - 发信人 uid 取论坛页面上的, 不信消息内容, 别人冒充不了
 - 只处理名单里的成员; 头衔必须在公共池或他自己的专属 titles 里
-- 每个会话只看最新一条, 重复处理结果不变; 名单没变就不提交
+- 每人只看他发来的最新一条, 重复处理结果不变; 名单没变就不提交. 不是成员的私信不打开
 """
 import html, http.cookiejar, json, os, re, sys, urllib.parse, urllib.request
 
@@ -12,6 +12,7 @@ BASE = "https://www.4d4y.com/forum/"
 CONFIG = "dis/config.json"
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
 MSG = re.compile(r"\[Dis 名人堂\]\s*(?:(不显示)|显示「(.+?)」)")
+DETAIL = re.compile(r'<cite>([^<]+)</cite>\s*(?:.*?)</p>\s*<div class="summary">(.*?)</div>', re.S)
 ITEM = re.compile(r'uid=(\d+)" target="_blank">(.*?)</a></cite>(.*?)</p>.*?summary">\s*(.*?)</div>', re.S)
 DEFAULT_POOL = ["名人堂", "元老", "传奇", "开荒者", "老友", "守望者"]
 
@@ -39,32 +40,41 @@ def login(username, password):
         sys.exit("登录失败: " + re.sub(r"<[^>]+>", "", res)[:200])
 
 
-def choices():
-    """{uid: (hidden: bool, title: str|None)}, 每个会话的最新一条"""
-    found = {}
+def latest(uid):
+    """和这个人的会话里, 对方发来的最新一条名人堂设置. 列表页摘要是空的, 要进会话页看"""
+    src = get(f"pm.php?uid={uid}&filter=privatepm&daterange=5")
+    result = None
+    for name, body in DETAIL.findall(src):   # 从旧到新
+        if name.strip() == os.environ["FORUM_USERNAME"]:
+            continue
+        m = MSG.search(html.unescape(re.sub(r"<[^>]+>", "", body)))
+        if m:
+            result = (True, None) if m.group(1) else (False, m.group(2).strip())
+    return result
+
+
+def choices(members):
+    """{uid: (hidden, title)}: 只看名单里的人, 别人的私信不读"""
+    found, senders = {}, set()
     for page in range(1, 11):
-        src = get(f"pm.php?filter=privatepm&page={page}")
-        items = ITEM.findall(src)
-        if os.environ.get("HOF_DEBUG"):
-            print("DEBUG", page, len(items), [(u, x[:120]) for u, _, _, x in items if u == "905301"])
-        for uid, _, _, summary in items:
-            text = html.unescape(re.sub(r"<[^>]+>", "", summary)).strip()
-            m = MSG.search(text)
-            if m and int(uid) not in found:
-                found[int(uid)] = (True, None) if m.group(1) else (False, m.group(2).strip())
+        items = ITEM.findall(get(f"pm.php?filter=privatepm&page={page}"))
+        senders |= {int(u) for u, *_ in items}
         if len(items) < 10:
             break
+    for uid in senders & members:
+        c = latest(uid)
+        if c:
+            found[uid] = c
     return found
 
 
 def main():
     login(os.environ["FORUM_USERNAME"], os.environ["FORUM_PASSWORD"])
-    found = choices()
-    print(f"收到 {len(found)} 位的设置")
-
     with open(CONFIG, encoding="utf-8") as f:
         config = json.load(f)
     hof = config.get("hallOfFame") or {}
+    found = choices({int(m.get("uid", 0)) for m in hof.get("members", [])})
+    print(f"收到 {len(found)} 位成员的设置")
     pool = hof.get("titles") or DEFAULT_POOL
     changed = []
     for m in hof.get("members", []):
@@ -79,9 +89,6 @@ def main():
         if new != m:
             m.clear(); m.update(new)
             changed.append(f"UID {uid} {'不显示' if hidden else '显示「' + title + '」'}")
-    for uid in set(found) - {int(m.get("uid", 0)) for m in hof.get("members", [])}:
-        print(f"UID {uid}: 不在名单里, 忽略")
-
     if not changed:
         print("名单无变化")
         return
