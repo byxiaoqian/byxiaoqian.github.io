@@ -3,6 +3,11 @@
     "contact" : "kakay2",
     "members" : [
       {
+        "current" : "元老",
+        "hidden" : false,
+        "uid" : 500085
+      },
+      {
         "current" : "开荒者",
         "hidden" : false,
         "uid" : 905301
