@@ -24,7 +24,8 @@
   },
   "minVersion" : "0.9.0",
   "notice" : null,
-  "tfProFree" : true,
+  "tfProFree" : false,
   "unlockCodesEnabled" : false,
-  "version" : 1
+  "version" : 1,
+  "earlyBird" : true
 }
